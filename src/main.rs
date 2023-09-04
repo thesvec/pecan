@@ -94,6 +94,7 @@ fn main() -> ExitCode {
   }
 
   let status = std::process::Command::new("ld")
+    .arg("-s")
     .arg("-o")
     .arg(bin_file)
     .arg(obj_file)
