@@ -1,1 +1,5 @@
 target/
+
+out.asm
+out.o
+out
