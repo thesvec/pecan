@@ -1,1 +1,5 @@
-exit(0)
+code := 100
+
+code = 69
+
+exit(code)

@@ -66,7 +66,7 @@ impl Lexer {
         }
 
         self.tokens.push(Token::Literal {
-          val: Literal::Integer(num.parse::<i64>().unwrap()),
+          val: Literal::Integer(num.parse::<i32>().unwrap()),
           start,
           end: self.pos,
         });
@@ -92,7 +92,11 @@ impl Lexer {
             });
           },
           _ => {
-            return Err(LexerError::new(start, &format!("Unknown word: {}", word)));
+            self.tokens.push(Token::Identifier {
+              val: word,
+              start,
+              end: self.pos,
+            });
           },
         }
       } else if c == '(' {
@@ -112,6 +116,30 @@ impl Lexer {
 
         self.tokens.push(Token::Symbol {
           val: Symbol::RightParen,
+          start,
+          end: self.pos,
+        });
+      } else if c == ':' {
+        let start = self.pos;
+
+        if !matches!(self.peek(), Some('=')) {
+          return Err(LexerError::new(self.pos, "Expected '=' after ':'"));
+        }
+
+        self.next_n(2);
+
+        self.tokens.push(Token::Symbol {
+          val: Symbol::ColonEquals,
+          start,
+          end: self.pos,
+        });
+      } else if c == '=' {
+        let start = self.pos;
+
+        self.next();
+
+        self.tokens.push(Token::Symbol {
+          val: Symbol::Equals,
           start,
           end: self.pos,
         });

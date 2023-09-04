@@ -13,7 +13,7 @@ impl ToString for Keyword {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Literal {
-  Integer(i64),
+  Integer(i32),
 }
 
 impl ToString for Literal {
@@ -28,6 +28,8 @@ impl ToString for Literal {
 pub enum Symbol {
   LeftParen,
   RightParen,
+  Equals,
+  ColonEquals,
 }
 
 impl ToString for Symbol {
@@ -35,6 +37,8 @@ impl ToString for Symbol {
     match self {
       Symbol::LeftParen => "(".to_string(),
       Symbol::RightParen => ")".to_string(),
+      Symbol::Equals => "=".to_string(),
+      Symbol::ColonEquals => ":=".to_string(),
     }
   }
 }
@@ -75,6 +79,26 @@ impl Token {
       Token::Literal { .. } => "Literal".to_string(),
       Token::Symbol { .. } => "Symbol".to_string(),
       Token::EOF { .. } => "EOF".to_string(),
+    }
+  }
+
+  pub fn start(&self) -> usize {
+    match self {
+      Token::Keyword { start, .. } => *start,
+      Token::Identifier { start, .. } => *start,
+      Token::Literal { start, .. } => *start,
+      Token::Symbol { start, .. } => *start,
+      Token::EOF { start, .. } => *start,
+    }
+  }
+
+  pub fn end(&self) -> usize {
+    match self {
+      Token::Keyword { end, .. } => *end,
+      Token::Identifier { end, .. } => *end,
+      Token::Literal { end, .. } => *end,
+      Token::Symbol { end, .. } => *end,
+      Token::EOF { end, .. } => *end,
     }
   }
 }

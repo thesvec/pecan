@@ -14,14 +14,7 @@ impl Parser {
     Self {
       pos: 0,
       curr_start: 0,
-      curr_end: match tokens.get(0) {
-        Some(Token::Keyword { end, .. })
-        | Some(Token::Identifier { end, .. })
-        | Some(Token::Literal { end, .. })
-        | Some(Token::Symbol { end, .. })
-        | Some(Token::EOF { end, .. }) => *end,
-        None => 0,
-      },
+      curr_end: tokens.get(0).unwrap().end(),
       program: Program::new(),
       tokens,
     }
@@ -80,12 +73,8 @@ impl Parser {
         self.next();
         Ok(())
       },
-      Token::Keyword { start, .. }
-      | Token::Identifier { start, .. }
-      | Token::Literal { start, .. }
-      | Token::Symbol { start, .. }
-      | Token::EOF { start, .. } => Err(ParserError::new(
-        *start,
+      t => Err(ParserError::new(
+        t.start(),
         &format!(
           "Unexpected {}, expected keyword '{}'",
           self.curr().type_to_string(),
@@ -103,11 +92,8 @@ impl Parser {
         self.next();
         Ok(val)
       },
-      Token::Keyword { start, .. }
-      | Token::Literal { start, .. }
-      | Token::Symbol { start, .. }
-      | Token::EOF { start, .. } => Err(ParserError::new(
-        *start,
+      t => Err(ParserError::new(
+        t.start(),
         &format!(
           "Unexpected {}, expected identifier",
           self.curr().type_to_string()
@@ -124,11 +110,8 @@ impl Parser {
         self.next();
         Ok(val)
       },
-      Token::Keyword { start, .. }
-      | Token::Identifier { start, .. }
-      | Token::Symbol { start, .. }
-      | Token::EOF { start, .. } => Err(ParserError::new(
-        *start,
+      t => Err(ParserError::new(
+        t.start(),
         &format!(
           "Unexpected {}, expected literal",
           self.curr().type_to_string()
@@ -138,7 +121,7 @@ impl Parser {
   }
 
   #[allow(dead_code)]
-  fn expect_literal_int(&mut self) -> Result<i64, ParserError> {
+  fn expect_literal_int(&mut self) -> Result<i32, ParserError> {
     match self.expect_literal()? {
       Literal::Integer(i) => Ok(i),
       // _ => Err(ParserError::new(
@@ -155,16 +138,40 @@ impl Parser {
         self.next();
         Ok(())
       },
-      Token::Keyword { start, .. }
-      | Token::Identifier { start, .. }
-      | Token::Literal { start, .. }
-      | Token::Symbol { start, .. }
-      | Token::EOF { start, .. } => Err(ParserError::new(
-        *start,
+      t => Err(ParserError::new(
+        t.start(),
         &format!(
           "Unexpected {}, expected symbol '{}'",
           self.curr().type_to_string(),
           sym.to_string()
+        ),
+      )),
+    }
+  }
+
+  fn parse_expr(&mut self) -> Result<Expr, ParserError> {
+    match self.curr() {
+      Token::Literal { .. } => {
+        let literal = self.expect_literal()?;
+        Ok(Expr::Literal(literal))
+      },
+      Token::Identifier { .. } => {
+        let ident = self.expect_identifier()?;
+
+        if !self.program.vars.contains_key(&ident) {
+          return Err(ParserError::new(
+            self.tokens.get(self.pos - 1).unwrap().start(),
+            &format!("Variable '{}' not declared", ident),
+          ));
+        }
+
+        Ok(Expr::Identifier(ident))
+      },
+      t => Err(ParserError::new(
+        t.start(),
+        &format!(
+          "Unexpected {}, expected expression",
+          self.curr().type_to_string()
         ),
       )),
     }
@@ -179,25 +186,56 @@ impl Parser {
 
             self.expect_symbol(Symbol::LeftParen)?;
 
-            let expr = self.expect_literal_int()?;
+            let expr = self.parse_expr()?;
 
             self.expect_symbol(Symbol::RightParen)?;
 
-            self
-              .program
-              .stmts
-              .push(StmtNode::Exit(ExprNode::Literal(LiteralNode::Integer(
-                expr,
-              ))));
-
-            continue;
+            self.program.stmts.push(Stmt::Exit(expr));
           },
         },
-        Token::Identifier { val, start, .. } => {
-          return Err(ParserError::new(
-            *start,
-            &format!("Unexpected identifier: {}", val),
-          ));
+        Token::Identifier { val, .. } => {
+          let id = val.clone();
+
+          self.next();
+
+          match self.curr() {
+            Token::Symbol { val, .. } if *val == Symbol::ColonEquals => {
+              self.next();
+
+              let expr = self.parse_expr()?;
+
+              if self.program.vars.contains_key(&id) {
+                return Err(ParserError::new(
+                  self.tokens.get(self.pos - 1).unwrap().start(),
+                  &format!("Variable '{}' already declared", id),
+                ));
+              }
+
+              self.program.stmts.push(Stmt::VarDecl(id.clone(), expr));
+
+              self.program.vars.insert(id, Type::Integer);
+            },
+            Token::Symbol { val, .. } if *val == Symbol::Equals => {
+              self.next();
+
+              let expr = self.parse_expr()?;
+
+              if !self.program.vars.contains_key(&id) {
+                return Err(ParserError::new(
+                  self.tokens.get(self.pos - 1).unwrap().start(),
+                  &format!("Variable '{}' not declared", id),
+                ));
+              }
+
+              self.program.stmts.push(Stmt::VarAssign(id, expr));
+            },
+            _ => {
+              return Err(ParserError::new(
+                self.tokens.get(self.pos - 1).unwrap().start(),
+                &format!("Unexpected token: {:?}", self.curr()),
+              ));
+            },
+          }
         },
         Token::Literal { val, start, .. } => {
           return Err(ParserError::new(

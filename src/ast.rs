@@ -1,41 +1,45 @@
+use std::collections::HashMap;
+
+use super::*;
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Type {
+  Integer,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Program {
-  pub stmts: Vec<StmtNode>,
+  pub stmts: Vec<Stmt>,
+  pub vars:  HashMap<String, Type>,
 }
 
 impl Program {
   pub fn new() -> Self {
-    Self { stmts: Vec::new() }
-  }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum StmtNode {
-  Exit(ExprNode),
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum ExprNode {
-  Literal(LiteralNode),
-}
-
-impl ToString for ExprNode {
-  fn to_string(&self) -> String {
-    match self {
-      ExprNode::Literal(literal) => literal.to_string(),
+    Self {
+      stmts: Vec::new(),
+      vars:  HashMap::new(),
     }
   }
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum LiteralNode {
-  Integer(i64),
+pub enum Stmt {
+  Exit(Expr),
+  VarDecl(String, Expr),
+  VarAssign(String, Expr),
 }
 
-impl ToString for LiteralNode {
+#[derive(Debug, Clone, PartialEq)]
+pub enum Expr {
+  Literal(Literal),
+  Identifier(String),
+}
+
+impl ToString for Expr {
   fn to_string(&self) -> String {
     match self {
-      LiteralNode::Integer(val) => val.to_string(),
+      Expr::Literal(literal) => literal.to_string(),
+      Expr::Identifier(ident) => ident.to_string(),
     }
   }
 }
