@@ -2,19 +2,15 @@ use super::*;
 
 #[derive(Debug)]
 pub struct Parser {
-  tokens:     Vec<Token>,
-  pos:        usize,
-  curr_start: usize,
-  curr_end:   usize,
-  program:    Program,
+  tokens:  Vec<Token>,
+  pos:     usize,
+  program: Program,
 }
 
 impl Parser {
   pub fn new(tokens: Vec<Token>) -> Self {
     Self {
       pos: 0,
-      curr_start: 0,
-      curr_end: tokens.get(0).unwrap().end(),
       program: Program::new(),
       tokens,
     }
@@ -32,20 +28,11 @@ impl Parser {
   #[allow(dead_code)]
   fn next(&mut self) {
     self.pos += 1;
-    (self.curr_start, self.curr_end) = match self.curr() {
-      Token::Keyword { start, end, .. }
-      | Token::Identifier { start, end, .. }
-      | Token::Literal { start, end, .. }
-      | Token::Symbol { start, end, .. }
-      | Token::EOF { start, end } => (*start, *end),
-    };
   }
 
   #[allow(dead_code)]
   fn next_n(&mut self, n: usize) {
-    for _ in 0..n {
-      self.next();
-    }
+    self.pos += n;
   }
 
   #[allow(dead_code)]
@@ -67,56 +54,87 @@ impl Parser {
   }
 
   #[allow(dead_code)]
+  fn skip_newlines(&mut self) {
+    while matches!(self.curr(), Token::Newline { .. }) {
+      self.next();
+    }
+  }
+
+  #[allow(dead_code)]
   fn expect_keyword(&mut self, kw: Keyword) -> Result<(), ParserError> {
-    match self.curr() {
-      Token::Keyword { val, .. } if *val == kw => {
-        self.next();
-        Ok(())
-      },
-      t => Err(ParserError::new(
-        t.start(),
-        &format!(
-          "Unexpected {}, expected keyword '{}'",
-          self.curr().type_to_string(),
-          kw.to_string()
-        ),
-      )),
+    loop {
+      match self.curr() {
+        Token::Newline { .. } => {
+          self.next();
+          continue;
+        },
+        Token::Keyword { val, .. } if *val == kw => {
+          self.next();
+          return Ok(());
+        },
+        t => {
+          return Err(ParserError::new(
+            t.start(),
+            &format!(
+              "Unexpected {}, expected keyword '{}'",
+              self.curr().type_to_string(),
+              kw.to_string()
+            ),
+          ))
+        },
+      }
     }
   }
 
   #[allow(dead_code)]
   fn expect_identifier(&mut self) -> Result<String, ParserError> {
-    match self.curr() {
-      Token::Identifier { val, .. } => {
-        let val = val.clone();
-        self.next();
-        Ok(val)
-      },
-      t => Err(ParserError::new(
-        t.start(),
-        &format!(
-          "Unexpected {}, expected identifier",
-          self.curr().type_to_string()
-        ),
-      )),
+    loop {
+      match self.curr() {
+        Token::Newline { .. } => {
+          self.next();
+          continue;
+        },
+        Token::Identifier { val, .. } => {
+          let val = val.clone();
+          self.next();
+          return Ok(val);
+        },
+        t => {
+          return Err(ParserError::new(
+            t.start(),
+            &format!(
+              "Unexpected {}, expected identifier",
+              self.curr().type_to_string()
+            ),
+          ))
+        },
+      }
     }
   }
 
   #[allow(dead_code)]
   fn expect_literal(&mut self) -> Result<Literal, ParserError> {
-    match self.curr() {
-      Token::Literal { val, .. } => {
-        let val = val.clone();
-        self.next();
-        Ok(val)
-      },
-      t => Err(ParserError::new(
-        t.start(),
-        &format!(
-          "Unexpected {}, expected literal",
-          self.curr().type_to_string()
-        ),
-      )),
+    loop {
+      match self.curr() {
+        Token::Newline { .. } => {
+          self.next();
+          continue;
+        },
+        Token::Literal { val, .. } => {
+          let val = val.clone();
+          self.next();
+          return Ok(val);
+        },
+        t => {
+          return Err(ParserError::new(
+            t.start(),
+            &format!(
+              "Unexpected {}, expected literal",
+              self.curr().type_to_string()
+            ),
+          ))
+        },
+      }
     }
   }
 
@@ -124,134 +142,215 @@ impl Parser {
   fn expect_literal_int(&mut self) -> Result<i32, ParserError> {
     match self.expect_literal()? {
       Literal::Integer(i) => Ok(i),
-      // _ => Err(ParserError::new(
-      //   self.curr_start,
-      //   "Expected integer literal",
-      // )),
     }
   }
 
   #[allow(dead_code)]
   fn expect_symbol(&mut self, sym: Symbol) -> Result<(), ParserError> {
-    match self.curr() {
-      Token::Symbol { val, .. } if *val == sym => {
-        self.next();
-        Ok(())
+    loop {
+      match self.curr() {
+        Token::Newline { .. } => {
+          self.next();
+          continue;
+        },
+        Token::Symbol { val, .. } if *val == sym => {
+          self.next();
+          return Ok(());
+        },
+        t => {
+          return Err(ParserError::new(
+            t.start(),
+            &format!(
+              "Unexpected {}, expected symbol '{}'",
+              self.curr().type_to_string(),
+              sym.to_string()
+            ),
+          ))
+        },
+      }
+    }
+  }
+
+  fn type_of(&self, expr: &Expr) -> Type {
+    match expr {
+      Expr::Literal(lit) => match lit {
+        Literal::Integer(_) => Type::Integer,
       },
-      t => Err(ParserError::new(
-        t.start(),
-        &format!(
-          "Unexpected {}, expected symbol '{}'",
-          self.curr().type_to_string(),
-          sym.to_string()
-        ),
-      )),
+      Expr::Identifier(ident) => {
+        if self.program.vars.contains_key(ident) {
+          return self.program.vars.get(ident).unwrap().clone();
+        } else {
+          panic!("Variable '{}' not declared", ident);
+        }
+      },
     }
   }
 
   fn parse_expr(&mut self) -> Result<Expr, ParserError> {
-    match self.curr() {
-      Token::Literal { .. } => {
-        let literal = self.expect_literal()?;
-        Ok(Expr::Literal(literal))
-      },
-      Token::Identifier { .. } => {
-        let ident = self.expect_identifier()?;
+    loop {
+      match self.curr() {
+        Token::Newline { .. } => {
+          self.next();
+          continue;
+        },
+        Token::Literal { .. } => {
+          let literal = self.expect_literal()?;
+          return Ok(Expr::Literal(literal));
+        },
+        Token::Identifier { .. } => {
+          let ident = self.expect_identifier()?;
 
-        if !self.program.vars.contains_key(&ident) {
+          if !self.program.vars.contains_key(&ident) {
+            return Err(ParserError::new(
+              self.tokens.get(self.pos - 1).unwrap().start(),
+              &format!("Variable '{}' not declared", ident),
+            ));
+          }
+
+          return Ok(Expr::Identifier(ident));
+        },
+        t => {
           return Err(ParserError::new(
-            self.tokens.get(self.pos - 1).unwrap().start(),
-            &format!("Variable '{}' not declared", ident),
-          ));
-        }
+            t.start(),
+            &format!(
+              "Unexpected {}, expected expression",
+              self.curr().type_to_string()
+            ),
+          ))
+        },
+      }
+    }
+  }
 
-        Ok(Expr::Identifier(ident))
-      },
-      t => Err(ParserError::new(
-        t.start(),
+  fn parse_stmt(&mut self) -> Result<Option<Stmt>, ParserError> {
+    fn _parse_exit(parser: &mut Parser) -> Result<Stmt, ParserError> {
+      parser.expect_keyword(Keyword::Exit)?;
+
+      parser.expect_symbol(Symbol::LeftParen)?;
+
+      let expr = parser.parse_expr()?;
+
+      parser.expect_symbol(Symbol::RightParen)?;
+
+      Ok(Stmt::Exit(expr))
+    }
+
+    fn _parse_var_decl(parser: &mut Parser, ident: &str) -> Result<Stmt, ParserError> {
+      parser.expect_symbol(Symbol::ColonEquals)?;
+
+      let expr = parser.parse_expr()?;
+
+      if parser.program.vars.contains_key(ident) {
+        return Err(ParserError::new(
+          parser.tokens.get(parser.pos - 1).unwrap().start(),
+          &format!("Variable '{}' already declared", ident),
+        ));
+      }
+
+      parser
+        .program
+        .vars
+        .insert(ident.to_string(), parser.type_of(&expr));
+
+      Ok(Stmt::VarDecl(ident.to_string(), expr))
+    }
+
+    fn _parse_var_assign(parser: &mut Parser, ident: &str) -> Result<Stmt, ParserError> {
+      parser.expect_symbol(Symbol::Equals)?;
+
+      let expr = parser.parse_expr()?;
+
+      if !parser.program.vars.contains_key(ident) {
+        return Err(ParserError::new(
+          parser.tokens.get(parser.pos - 1).unwrap().start(),
+          &format!("Variable '{}' not declared", ident),
+        ));
+      }
+
+      Ok(Stmt::VarAssign(ident.to_string(), expr))
+    }
+
+    let stmt;
+
+    loop {
+      match self.curr() {
+        Token::EOF { .. } => return Ok(None),
+        Token::Newline { .. } => {
+          self.next();
+          continue;
+        },
+        Token::Keyword { val, .. } => match val {
+          Keyword::Exit => {
+            stmt = _parse_exit(self)?;
+
+            break;
+          },
+        },
+        Token::Identifier { val, .. } => {
+          let ident = val.clone();
+
+          self.next();
+          self.skip_newlines();
+
+          stmt = match self.curr() {
+            Token::Symbol { val, .. } => match val {
+              Symbol::ColonEquals => _parse_var_decl(self, &ident)?,
+              Symbol::Equals => _parse_var_assign(self, &ident)?,
+              Symbol::LeftParen => todo!("function calls not implemented"),
+              _ => {
+                return Err(ParserError::new(
+                  self.curr().start(),
+                  &format!("Unexpected {}", self.curr().type_to_string()),
+                ))
+              },
+            },
+            t => {
+              return Err(ParserError::new(
+                t.start(),
+                &format!(
+                  "Unexpected {}, expected symbol",
+                  self.curr().type_to_string()
+                ),
+              ))
+            },
+          };
+
+          break;
+        },
+        t => {
+          return Err(ParserError::new(
+            t.start(),
+            &format!(
+              "Unexpected {}, expected statement",
+              self.curr().type_to_string()
+            ),
+          ))
+        },
+      }
+    }
+
+    if let Token::Newline { .. } = self.curr() {
+      self.next();
+      self.skip_newlines();
+    } else {
+      return Err(ParserError::new(
+        self.curr().start(),
         &format!(
-          "Unexpected {}, expected expression",
+          "Unexpected {}, expected newline or EOF after statement",
           self.curr().type_to_string()
         ),
-      )),
+      ));
     }
+
+    Ok(Some(stmt))
   }
 
   pub fn parse(&mut self) -> Result<Program, ParserError> {
     while !matches!(self.curr(), Token::EOF { .. }) {
-      match self.curr() {
-        Token::Keyword { val, .. } => match val {
-          Keyword::Exit => {
-            self.next();
+      let stmt = self.parse_stmt()?;
 
-            self.expect_symbol(Symbol::LeftParen)?;
-
-            let expr = self.parse_expr()?;
-
-            self.expect_symbol(Symbol::RightParen)?;
-
-            self.program.stmts.push(Stmt::Exit(expr));
-          },
-        },
-        Token::Identifier { val, .. } => {
-          let id = val.clone();
-
-          self.next();
-
-          match self.curr() {
-            Token::Symbol { val, .. } if *val == Symbol::ColonEquals => {
-              self.next();
-
-              let expr = self.parse_expr()?;
-
-              if self.program.vars.contains_key(&id) {
-                return Err(ParserError::new(
-                  self.tokens.get(self.pos - 1).unwrap().start(),
-                  &format!("Variable '{}' already declared", id),
-                ));
-              }
-
-              self.program.stmts.push(Stmt::VarDecl(id.clone(), expr));
-
-              self.program.vars.insert(id, Type::Integer);
-            },
-            Token::Symbol { val, .. } if *val == Symbol::Equals => {
-              self.next();
-
-              let expr = self.parse_expr()?;
-
-              if !self.program.vars.contains_key(&id) {
-                return Err(ParserError::new(
-                  self.tokens.get(self.pos - 1).unwrap().start(),
-                  &format!("Variable '{}' not declared", id),
-                ));
-              }
-
-              self.program.stmts.push(Stmt::VarAssign(id, expr));
-            },
-            _ => {
-              return Err(ParserError::new(
-                self.tokens.get(self.pos - 1).unwrap().start(),
-                &format!("Unexpected token: {:?}", self.curr()),
-              ));
-            },
-          }
-        },
-        Token::Literal { val, start, .. } => {
-          return Err(ParserError::new(
-            *start,
-            &format!("Unexpected literal: {:?}", val),
-          ));
-        },
-        Token::Symbol { val, start, .. } => {
-          return Err(ParserError::new(
-            *start,
-            &format!("Unexpected symbol: {:?}", val),
-          ));
-        },
-        Token::EOF { start, .. } => {
-          return Err(ParserError::new(*start, "Unexpected EOF"));
-        },
+      if stmt.is_some() {
+        self.program.stmts.push(stmt.unwrap());
       }
     }
 

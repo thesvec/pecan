@@ -51,6 +51,12 @@ impl Lexer {
   pub fn lex(&mut self) -> Result<Vec<Token>, LexerError> {
     while let Some(c) = self.curr() {
       if c.is_ascii_whitespace() {
+        if c == '\n' {
+          self.tokens.push(Token::Newline {
+            start: self.pos,
+            end:   self.pos + 1,
+          });
+        }
         self.next();
       } else if c.is_ascii_digit() {
         let mut num = String::new();
@@ -62,6 +68,15 @@ impl Lexer {
             self.next();
           } else {
             break;
+          }
+        }
+
+        if let Some(c) = self.curr() {
+          if c.is_ascii_alphabetic() || c == '_' {
+            return Err(LexerError::new(
+              self.pos,
+              "Expected whitespace or symbol after number",
+            ));
           }
         }
 

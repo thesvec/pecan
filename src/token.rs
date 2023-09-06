@@ -65,6 +65,10 @@ pub enum Token {
     start: usize,
     end:   usize,
   },
+  Newline {
+    start: usize,
+    end:   usize,
+  },
   EOF {
     start: usize,
     end:   usize,
@@ -78,6 +82,7 @@ impl Token {
       Token::Identifier { .. } => "Identifier".to_string(),
       Token::Literal { .. } => "Literal".to_string(),
       Token::Symbol { .. } => "Symbol".to_string(),
+      Token::Newline { .. } => "Newline".to_string(),
       Token::EOF { .. } => "EOF".to_string(),
     }
   }
@@ -88,6 +93,7 @@ impl Token {
       Token::Identifier { start, .. } => *start,
       Token::Literal { start, .. } => *start,
       Token::Symbol { start, .. } => *start,
+      Token::Newline { start, .. } => *start,
       Token::EOF { start, .. } => *start,
     }
   }
@@ -98,6 +104,7 @@ impl Token {
       Token::Identifier { end, .. } => *end,
       Token::Literal { end, .. } => *end,
       Token::Symbol { end, .. } => *end,
+      Token::Newline { end, .. } => *end,
       Token::EOF { end, .. } => *end,
     }
   }
@@ -110,6 +117,7 @@ impl ToString for Token {
       Token::Identifier { val, .. } => val.clone(),
       Token::Literal { val, .. } => val.to_string(),
       Token::Symbol { val, .. } => val.to_string(),
+      Token::Newline { .. } => "<NEWLINE>".to_string(),
       Token::EOF { .. } => "<EOF>".to_string(),
     }
   }
