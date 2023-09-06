@@ -1,5 +1,5 @@
 target/
 
-out.asm
-out.o
-out
+*.asm
+*.o
+*.out
