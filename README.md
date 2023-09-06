@@ -1,3 +1,3 @@
 # pecan
 
-a scripting language
+a compiled programming language
