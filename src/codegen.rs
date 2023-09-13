@@ -13,74 +13,71 @@ impl Generator {
     }
   }
 
-  pub fn generate(&mut self) -> String {
-    const SYS_EXIT: u8 = 60;
+  fn gen_expr(&mut self, expr: Expr) -> String {
+    let mut code = String::new();
 
-    self.output.clear();
-
-    let mut data = String::new();
-    let mut text = String::new();
-
-    for stmt in self.program.stmts.iter() {
-      match stmt {
-        Stmt::Exit(expr) => match expr {
-          Expr::Literal(literal) => match literal {
-            Literal::Integer(val) => {
-              text += "  mov rax, ";
-              text += &SYS_EXIT.to_string();
-              text += "\n";
-              text += "  mov rdi, ";
-              text += &val.to_string();
-              text += "\n";
-              text += "  syscall\n";
-            },
-          },
-          Expr::Identifier(ident) => {
-            text += "  mov rax, ";
-            text += &SYS_EXIT.to_string();
-            text += "\n";
-            text += "  mov rdi, [";
-            text += ident;
-            text += "]\n";
-            text += "  syscall\n";
-          },
+    match expr {
+      Expr::Literal(l) => match l {
+        Literal::Integer(i) => {
+          code += &format!("  mov rax, {}\n", i);
+          code += "  push rax\n";
         },
-        Stmt::VarDecl(ident, expr) => match expr {
-          Expr::Literal(literal) => match literal {
-            Literal::Integer(val) => {
-              data += &format!("{}: dd {}\n", ident, val);
-            },
-          },
-          _ => panic!("Expected literal"),
-        },
-        Stmt::VarAssign(ident, expr) => match expr {
-          Expr::Literal(literal) => match literal {
-            Literal::Integer(val) => {
-              text += "  mov [";
-              text += ident;
-              text += "], dword ";
-              text += &val.to_string();
-              text += "\n";
-            },
-          },
-          Expr::Identifier(ident2) => {
-            text += "  mov rax, [";
-            text += ident2;
-            text += "]\n";
-            text += "  mov [";
-            text += ident;
-            text += "], rax\n";
-          },
-        },
-      }
+      },
+      Expr::Identifier(i) => {
+        let entry = self.program.find_entry(&i).unwrap();
+        code += &format!("  mov rax, [rbp - {}]\n", entry.offset);
+        code += "  push rax\n";
+      },
     }
 
+    code
+  }
+
+  fn gen_stmt(&mut self, stmt: Stmt) -> String {
+    let mut code = String::new();
+
+    match stmt {
+      Stmt::Exit(expr) => {
+        code += &self.gen_expr(expr);
+        code += "  pop rdi\n";
+        code += "  jmp _exit\n";
+      },
+      Stmt::VarDecl(name, expr) => {
+        code += &self.gen_expr(expr);
+        code += "  pop rax\n";
+        let entry = self.program.find_entry(&name).unwrap();
+        code += &format!("  mov [rbp - {}], rax\n", entry.offset);
+      },
+      Stmt::VarAssign(name, expr) => {
+        code += &self.gen_expr(expr);
+        code += "  pop rax\n";
+        let entry = self.program.find_entry(&name).unwrap();
+        code += &format!("  mov [rbp - {}], rax\n", entry.offset);
+      },
+    }
+
+    code
+  }
+
+  pub fn generate(&mut self) -> String {
+    self.output.clear();
+
     self.output += "global _start\n";
-    self.output += "section .data\n";
-    self.output += &data;
     self.output += "section .text\n";
     self.output += "_start:\n";
-    self.output += &text;
+    self.output += "  mov rbp, rsp\n";
+
+    let stmts = self.program.stmts.clone();
+    for stmt in stmts {
+      let code = self.gen_stmt(stmt.clone());
+      self.output += &code;
+    }
+
+    self.output += "  mov rdi, 0\n";
+    self.output += "_exit:\n";
+    self.output += "  mov rsp, rbp\n";
+    self.output += "  mov rax, 60\n";
+    self.output += "  syscall\n";
 
     self.output.clone()
   }

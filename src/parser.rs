@@ -177,11 +177,7 @@ impl Parser {
         Literal::Integer(_) => Type::Integer,
       },
       Expr::Identifier(ident) => {
-        if self.program.vars.contains_key(ident) {
-          return self.program.vars.get(ident).unwrap().clone();
-        } else {
-          panic!("Variable '{}' not declared", ident);
-        }
+        todo!("type_of: {}", ident);
       },
     }
   }
@@ -200,7 +196,7 @@ impl Parser {
         Token::Identifier { .. } => {
           let ident = self.expect_identifier()?;
 
-          if !self.program.vars.contains_key(&ident) {
+          if let None = self.program.find_entry(&ident) {
             return Err(ParserError::new(
               self.tokens.get(self.pos - 1).unwrap().start(),
               &format!("Variable '{}' not declared", ident),
@@ -240,7 +236,7 @@ impl Parser {
 
       let expr = parser.parse_expr()?;
 
-      if parser.program.vars.contains_key(ident) {
+      if let Some(_) = parser.program.find_entry(ident) {
         return Err(ParserError::new(
           parser.tokens.get(parser.pos - 1).unwrap().start(),
           &format!("Variable '{}' already declared", ident),
@@ -249,8 +245,7 @@ impl Parser {
 
       parser
         .program
-        .vars
-        .insert(ident.to_string(), parser.type_of(&expr));
+        .push_entry(ident.to_string(), parser.type_of(&expr));
 
       Ok(Stmt::VarDecl(ident.to_string(), expr))
     }
@@ -260,7 +255,7 @@ impl Parser {
 
       let expr = parser.parse_expr()?;
 
-      if !parser.program.vars.contains_key(ident) {
+      if let None = parser.program.find_entry(ident) {
         return Err(ParserError::new(
           parser.tokens.get(parser.pos - 1).unwrap().start(),
           &format!("Variable '{}' not declared", ident),
@@ -350,7 +345,7 @@ impl Parser {
       let stmt = self.parse_stmt()?;
 
       if stmt.is_some() {
-        self.program.stmts.push(stmt.unwrap());
+        self.program.push_stmt(stmt.unwrap());
       }
     }
 

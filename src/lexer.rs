@@ -2,7 +2,7 @@ use super::*;
 
 #[derive(Debug)]
 pub struct Lexer {
-  input:  String,
+  input:  Box<str>,
   pos:    usize,
   tokens: Vec<Token>,
 }
@@ -10,7 +10,7 @@ pub struct Lexer {
 impl Lexer {
   pub fn new(input: &str) -> Self {
     Self {
-      input:  input.to_string(),
+      input:  input.into(),
       pos:    0,
       tokens: Vec::new(),
     }
