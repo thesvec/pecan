@@ -22,13 +22,15 @@ impl SymbolTableEntry {
 pub struct SymbolTable {
   pub entries: Vec<SymbolTableEntry>,
   pub offset:  usize,
+  pub parent:  Option<usize>,
 }
 
 impl SymbolTable {
-  pub fn new(offset: usize) -> Self {
+  pub fn new(offset: usize, parent: Option<usize>) -> Self {
     Self {
       entries: Vec::new(),
       offset,
+      parent,
     }
   }
 
@@ -61,13 +63,15 @@ impl SymbolTable {
 pub struct Program {
   pub stmts:         Vec<Stmt>,
   pub symbol_tables: Vec<SymbolTable>,
+  pub curr_table:    usize,
 }
 
 impl Program {
   pub fn new() -> Self {
     Self {
       stmts:         Vec::new(),
-      symbol_tables: vec![SymbolTable::new(0)],
+      symbol_tables: vec![SymbolTable::new(0, None)],
+      curr_table:    0,
     }
   }
 
@@ -80,10 +84,12 @@ impl Program {
   }
 
   pub fn find_entry(&self, name: &str) -> Option<&SymbolTableEntry> {
-    for table in self.symbol_tables.iter().rev() {
-      if let Some(entry) = table.get(name) {
+    let mut table = Some(self.curr_table);
+    while let Some(i) = table {
+      if let Some(entry) = self.symbol_tables[i].get(name) {
         return Some(entry);
       }
+      table = self.symbol_tables[i].parent;
     }
     None
   }
