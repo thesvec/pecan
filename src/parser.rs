@@ -76,7 +76,7 @@ impl Parser {
           return Err(ParserError::new(
             t.start(),
             &format!(
-              "Unexpected {}, expected keyword '{}'",
+              "Unexpected {}, expected '{}'",
               self.curr().type_to_string(),
               kw.to_string()
             ),
@@ -196,7 +196,7 @@ impl Parser {
         Token::Identifier { .. } => {
           let ident = self.expect_identifier()?;
 
-          if let None = self.program.find_entry(&ident) {
+          if let None = self.program.find_entry(&ident, false) {
             return Err(ParserError::new(
               self.tokens.get(self.pos - 1).unwrap().start(),
               &format!("Variable '{}' not declared", ident),
@@ -236,10 +236,10 @@ impl Parser {
 
       let expr = parser.parse_expr()?;
 
-      if let Some(_) = parser.program.find_entry(ident) {
+      if let Some(_) = parser.program.find_entry(ident, true) {
         return Err(ParserError::new(
           parser.tokens.get(parser.pos - 1).unwrap().start(),
-          &format!("Variable '{}' already declared", ident),
+          &format!("Variable '{}' already declared in this scope", ident),
         ));
       }
 
@@ -255,7 +255,7 @@ impl Parser {
 
       let expr = parser.parse_expr()?;
 
-      if let None = parser.program.find_entry(ident) {
+      if let None = parser.program.find_entry(ident, false) {
         return Err(ParserError::new(
           parser.tokens.get(parser.pos - 1).unwrap().start(),
           &format!("Variable '{}' not declared", ident),

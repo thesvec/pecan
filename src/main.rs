@@ -36,7 +36,7 @@ Options:
 fn main() -> ExitCode {
   let args = std::env::args().collect::<Vec<String>>();
 
-  let mut bin_file = "a";
+  let mut out_file = "a";
 
   let file = match args.len() {
     1 | 2 => {
@@ -62,7 +62,7 @@ fn main() -> ExitCode {
     5 => {
       if args[1] == "-c" {
         if args[2] == "-o" {
-          bin_file = &args[3];
+          out_file = &args[3];
           args[4].clone()
         } else {
           eprintln!("Invalid option: {}", args[3]);
@@ -79,9 +79,9 @@ fn main() -> ExitCode {
     },
   };
 
-  let out_file = &format!("{}.asm", bin_file);
-  let obj_file = &format!("{}.o", bin_file);
-  let bin_file = &format!("{}.out", bin_file);
+  let asm_file = &format!("{}.asm", out_file);
+  let obj_file = &format!("{}.o", out_file);
+  let out_file = &format!("{}.out", out_file);
 
   let input = match std::fs::read_to_string(file) {
     Ok(input) => input,
@@ -121,7 +121,7 @@ fn main() -> ExitCode {
 
   let output = generator.generate();
 
-  match std::fs::write(out_file, output) {
+  match std::fs::write(asm_file, output) {
     Ok(_) => (),
     Err(err) => {
       eprintln!("{}", err.to_string());
@@ -134,7 +134,7 @@ fn main() -> ExitCode {
     .arg("elf64")
     .arg("-o")
     .arg(obj_file)
-    .arg(out_file)
+    .arg(asm_file)
     .status()
     .expect("Failed to execute nasm");
 
@@ -146,7 +146,7 @@ fn main() -> ExitCode {
   let status = std::process::Command::new("ld")
     .arg("-s")
     .arg("-o")
-    .arg(bin_file)
+    .arg(out_file)
     .arg(obj_file)
     .status()
     .expect("Failed to execute ld");
@@ -157,7 +157,7 @@ fn main() -> ExitCode {
   }
 
   let status = std::process::Command::new("rm")
-    .arg(out_file)
+    .arg(asm_file)
     .arg(obj_file)
     .status()
     .expect("Failed to execute rm");

@@ -18,17 +18,24 @@ impl SymbolTableEntry {
   }
 }
 
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum ScopeType {
+  Global,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct SymbolTable {
   pub entries: Vec<SymbolTableEntry>,
+  pub ty:      ScopeType,
   pub offset:  usize,
   pub parent:  Option<usize>,
 }
 
 impl SymbolTable {
-  pub fn new(offset: usize, parent: Option<usize>) -> Self {
+  pub fn new(ty: ScopeType, offset: usize, parent: Option<usize>) -> Self {
     Self {
       entries: Vec::new(),
+      ty,
       offset,
       parent,
     }
@@ -70,7 +77,7 @@ impl Program {
   pub fn new() -> Self {
     Self {
       stmts:         Vec::new(),
-      symbol_tables: vec![SymbolTable::new(0, None)],
+      symbol_tables: vec![SymbolTable::new(ScopeType::Global, 0, None)],
       curr_table:    0,
     }
   }
@@ -83,7 +90,10 @@ impl Program {
     self.symbol_tables.last_mut().unwrap().add(name, ty);
   }
 
-  pub fn find_entry(&self, name: &str) -> Option<&SymbolTableEntry> {
+  pub fn find_entry(&self, name: &str, local: bool) -> Option<&SymbolTableEntry> {
+    if local {
+      return self.symbol_tables[self.curr_table].get(name);
+    }
     let mut table = Some(self.curr_table);
     while let Some(i) = table {
       if let Some(entry) = self.symbol_tables[i].get(name) {
