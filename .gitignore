@@ -1,5 +1,8 @@
 target/
 
+.vscode/
+.idea/
+
 *.asm
 *.o
 *.out
